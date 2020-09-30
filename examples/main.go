@@ -8,7 +8,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/medivh-jay/daemon"
+	"github.com/kenretto/daemon"
 	"github.com/spf13/cobra"
 )
 

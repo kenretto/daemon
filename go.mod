@@ -1,4 +1,4 @@
-module github.com/medivh-jay/daemon
+module github.com/kenretto/daemon
 
 go 1.13
 
