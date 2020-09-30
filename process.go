@@ -8,38 +8,39 @@ import (
 )
 
 const (
-	// EnvName 标识是子进程的环境变量名称
+	// EnvName Identify the name of the environment variable that is the child process.
+	// A simple method is to set an environment variable so that the program can determine whether it is created by its own parent process after getting it.
 	EnvName = "DAEMON"
 )
 
-// Worker 具体工作程序接口
+// Worker The interface that the working program must implement
 type Worker interface {
-	// PidSavePath pid 文件保存路径
+	// PidSavePath pid file save path
 	PidSavePath() string
-	// Name pid文件的名字
+	// Name pid file name
 	Name() string
-	// Start 启动服务的具体执行
+	// Start Program startup entry method
 	Start()
-	// Stop 关闭服务的前置操作
+	// Stop Program stop handle
 	Stop() error
-	// Restart 重启服务的前置操作
+	// Restart Program restart handle
 	Restart() error
 }
 
 type (
-	// 系统信号处理方法
+	// system signal handlers
 	signalHandlers map[os.Signal]func()
-	// Process 启动服务的具体配置信息
+	// Process a service process info
 	Process struct {
-		Pipeline       [3]*os.File    // 输入输出管道, 0->input, 1->output, 2->err
-		Pid            *Pid           // pid 对象信息
-		worker         Worker         // 工作对象
-		DaemonTag      string         // 标识是子进程的环境变量名称,当该值所标识的环境变量值为 false 时, 程序将不会进入daemon运行
-		SignalHandlers signalHandlers // 信号处理器
+		Pipeline       [3]*os.File // input/output pipe, 0->input, 1->output, 2->err
+		Pid            *Pid        // pid pid info
+		worker         Worker      // worker
+		DaemonTag      string
+		SignalHandlers signalHandlers // signal handlers
 	}
 )
 
-// Listen 监听系统信号
+// Listen listen all system signals
 func (handlers signalHandlers) Listen() {
 	var sig = make(chan os.Signal)
 	signal.Notify(sig)
@@ -51,8 +52,7 @@ func (handlers signalHandlers) Listen() {
 	}
 }
 
-// NewProcess 实例化工作进程配置
-//  worker 具体工作对象
+// NewProcess create a process instance with Worker
 func NewProcess(worker Worker) *Process {
 	process := &Process{
 		Pipeline: [3]*os.File{os.Stdin, os.Stdout, os.Stderr},
@@ -70,8 +70,8 @@ func NewProcess(worker Worker) *Process {
 	return process
 }
 
-// SetPipeline 设置输入输出文件描述对象, 最多三个, 顺序分别为 0 -> 输入(一般直接放弃, 可以传nil), 1 -> 正常输出, 2 -> 错误输出
-//  如果不需要程序运行时对标准输入输出的信息, 可以不用设置
+// SetPipeline set standard i/o pipeline, 0 -> stdin(generally give up directly, you can send nil), 1 -> stdout, 2 -> stderr
+// of course, you can choose not to set it.
 func (process *Process) SetPipeline(pipes ...*os.File) *Process {
 	if len(pipes) > 3 {
 		pipes = pipes[0:3]
@@ -82,18 +82,14 @@ func (process *Process) SetPipeline(pipes ...*os.File) *Process {
 	return process
 }
 
-// SetDaemonTag 设置Daemon标识环境变量, 因为 golang 的进程机制无法像常规的进程管理一下正常fork,
-// 所以使用的 exec.Command 启动一个进程, 这个方法启动的进程有一个问题是, 启动起来的子进程的 ppid 为当前用户 systemd,
-// 所以以前的常用代码  fork 的 ppid == 1 这类操作在这里很难实现, 所以需要一个标识让 exec.Command 启动的本身知道自己是被 exec.Command 启动起来的,
-// 有很多中方法, 但是大多都会侵入程序本身逻辑, 就没必要了, 所以使用一个环境变量来让子进程读取, 但是再怎么避免, 可能默认的环境变量名 DAEMON 都可能是具体程序
-// 需要的环境变量, 所以这里提供方法修改默认的环境变量名称
+// SetDaemonTag custom DAEMON env name
 func (process *Process) SetDaemonTag(name string) *Process {
 	process.DaemonTag = name
 	return process
 }
 
-// On 注册自定义的子进程的信号处理方法, 这里注册的方法实际是在子进程运行的, 子进程运行的程序逻辑是
-// 真正的程序逻辑在子进程的一个协程中运行, 而子进程的主程序运行的信号监听方法
+// On register the signal handling method of the custom child process. The method registered here is actually running on the child process.
+// The real program logic runs in a co-program of the child process, and the signal monitoring method of the main co-program running of the child process
 func (process *Process) On(signal os.Signal, fn func()) {
 	if process.SignalHandlers == nil {
 		process.SignalHandlers = make(signalHandlers)
@@ -101,7 +97,7 @@ func (process *Process) On(signal os.Signal, fn func()) {
 	process.SignalHandlers[signal] = fn
 }
 
-// 监听终端操作
+// monitor interrupt signal operation
 func (process *Process) registerDefaultInterruptHandle() {
 	process.On(os.Interrupt, func() {
 		err := process.worker.Stop()
@@ -113,7 +109,7 @@ func (process *Process) registerDefaultInterruptHandle() {
 	})
 }
 
-// 注册默认的关闭方法, 监听了 USR1 信号
+// register the default stop method and listen for USR1 signals
 func (process *Process) registerDefaultStopHandle() {
 	process.On(SIGUSR1, func() {
 		err := process.worker.Stop()
@@ -125,10 +121,10 @@ func (process *Process) registerDefaultStopHandle() {
 	})
 }
 
-// 注册默认的重启方法, 监听了 USR2 信号
+// register the default restart method and listen for USR2 signals
 func (process *Process) registerDefaultRestartHandle() {
 	process.On(SIGUSR2, func() {
-		process.Pid.Remove() // 将删除pid的操作移动到这里, 因为在下边可能导致 pid 还没有释放导致重启报错
+		process.Pid.Remove()
 		var done = make(chan bool)
 		go func() {
 			err := process.worker.Restart()
@@ -147,12 +143,12 @@ func (process *Process) registerDefaultRestartHandle() {
 	})
 }
 
-// IsChild 判断是否是在子进程中启动的, 根据环境变量 DAEMON 判断
+// IsChild To determine whether it is started in a child process, according to the environment variable DAEMON
 func (process *Process) IsChild() bool {
 	return os.Getenv(process.DaemonTag) == "true"
 }
 
-// Run 运行程序,主逻辑在协程中运行,主协程运行系统信号监听程序
+// Run Run the program, the main logic runs in the cooperative program, and the main cooperative program runs the system signal listener.
 func (process *Process) Run() error {
 	if process.IsChild() {
 		if err := process.Pid.Save(); err != nil {

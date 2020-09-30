@@ -5,13 +5,13 @@ import (
 	"path"
 )
 
-// 锁文件
+// lock a file
 func lock(file *os.File) error {
 	err := Flock(int(file.Fd()), LOCK_EX|LOCK_NB)
 	return err
 }
 
-// 写文件
+// write file
 func write(filename string, body string) (file *os.File, err error) {
 	file, err = create(filename)
 	if err != nil {
@@ -22,7 +22,7 @@ func write(filename string, body string) (file *os.File, err error) {
 	return
 }
 
-// 创建文件
+// create file
 func create(filename string) (file *os.File, err error) {
 	dir := path.Dir(filename)
 	_, err = os.Stat(dir)

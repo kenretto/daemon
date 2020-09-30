@@ -7,15 +7,15 @@ import (
 	"strconv"
 )
 
-// Pid 这里边主要记录的进程id信息和进程pid文件描述符
+// Pid The process id information and process pid file descriptors that are mainly recorded here
 type Pid struct {
-	ServicesName string   // 服务名称,非进程名称
-	SavePath     string   // 保存路径
-	Pid          int      // 进程号
-	File         *os.File // 文件句柄
+	ServicesName string   // service name, not process name
+	SavePath     string   // pid save path
+	Pid          int      // pid num
+	File         *os.File // file
 }
 
-// SaveFilename 获取保存pid的路径
+// SaveFilename Get the path where the pid is saved
 func (pid Pid) SaveFilename() string {
 	path, err := filepath.Abs(pid.SavePath)
 	if err != nil {
@@ -25,14 +25,14 @@ func (pid Pid) SaveFilename() string {
 	return fmt.Sprintf("%s/%s.pid", path, pid.ServicesName)
 }
 
-// Save 保存 pid
+// Save save pid
 func (pid Pid) Save() error {
 	var err error
 	pid.File, err = write(pid.SaveFilename(), strconv.Itoa(pid.Pid))
 	return err
 }
 
-// Remove 关闭文件描述符并删除pid文件
+// Remove Close the file descriptor and delete the pid file
 func (pid Pid) Remove() {
 	_ = pid.File.Close()
 	_ = os.Remove(pid.SaveFilename())

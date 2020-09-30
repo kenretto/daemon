@@ -12,8 +12,9 @@ var (
 	command = &Daemon{command: &cobra.Command{Use: Name()}}
 )
 
-// Command 给自己的运行worker设置命令, 毕竟自己的程序也会需要各种参数, 如果实现了这个接口
-// ,SetCommand 将在启动前执行, 传入 cobra.Command 对象, 可保存以供使用
+// Command Set commands to your own running worker. After all,
+// your own program will also need various parameters. If you implement this interface,
+//SetCommand will be executed before startup, passing in the cobra.Command object, which can be saved for use.
 type Command interface {
 	SetCommand(cmd *cobra.Command)
 }
@@ -28,7 +29,8 @@ func start(worker *Process) *cobra.Command {
 				isDaemon = true
 			}
 
-			// 如果传入 --daemon=false, 这里将直接把环境变量 DAEMON 写为 true, 让真正的程序逻辑非后台运行
+			// If --daemon=false is passed in, the environment variable DAEMON will be directly written as true,
+			// to allow the real program logic to run off the background.
 			if !isDaemon {
 				_ = os.Setenv(worker.DaemonTag, "true")
 			}
@@ -111,7 +113,7 @@ func restart(worker *Process) *cobra.Command {
 	}
 }
 
-// Daemon 命令管理
+// Daemon manager
 type Daemon struct {
 	command  *cobra.Command
 	children map[string]*Daemon
@@ -119,9 +121,9 @@ type Daemon struct {
 	worker   *Process
 }
 
-// AddWorker 添加子执行程序
-// 可链式调用生成多级命令
-// 非链式调用生成多个同级的命令,但是记住同级的命令不要同名
+// AddWorker add child exec process
+// chainable call to generate multi-level commands.
+// non-chained calls generate multiple sibling commands, but remember that sibling commands do not have the same name
 func (daemon *Daemon) AddWorker(worker *Process) *Daemon {
 	if daemon.children == nil {
 		daemon.children = make(map[string]*Daemon)
@@ -137,12 +139,12 @@ func (daemon *Daemon) AddWorker(worker *Process) *Daemon {
 	return child
 }
 
-// GetParent 获取父级命令
+// GetParent get parent Daemon
 func (daemon *Daemon) GetParent() *Daemon {
 	return daemon.parent
 }
 
-// Register 注册主执行程序, 没有可不注册
+// Register register main service, if not, you don't have to register.
 func Register(worker *Process) {
 	command.parent = nil
 	command.worker = worker
@@ -152,17 +154,17 @@ func Register(worker *Process) {
 	command.command.AddCommand(start(worker), stop(worker), restart(worker))
 }
 
-// GetCommand 获取主命令管理
+// GetCommand get main Daemon
 func GetCommand() *Daemon {
 	return command
 }
 
-// Run 运行入口
+// Run entry point
 func Run() error {
 	return command.command.Execute()
 }
 
-// Name 获取运行程序名称
+// Name get bin package file name
 func Name() string {
 	fileInfo, err := os.Stat(os.Args[0])
 	if err != nil {
